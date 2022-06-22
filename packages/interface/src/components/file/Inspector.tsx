@@ -3,6 +3,7 @@ import { ShareIcon } from '@heroicons/react/solid';
 import { useBridgeCommand } from '@sd/client';
 import { FilePath, LocationResource } from '@sd/core';
 import { Button, TextArea } from '@sd/ui';
+import { debounce } from 'lodash';
 import moment from 'moment';
 import { Heart, Link } from 'phosphor-react';
 import React, { useEffect, useState } from 'react';
@@ -31,12 +32,22 @@ const MetaItem = (props: MetaItemProps) => {
 
 const Divider = () => <div className="w-full my-1 h-[1px] bg-gray-100 dark:bg-gray-550" />;
 
+// debounced note update function outside of component to prevent debounce cancel on rerender
+export type UpdateNoteFunc = (update: { id: number; note: string }) => Promise<void>;
+const updateNoteDebounced = debounce(
+	async (file_id: number, note: string, updateFunc: UpdateNoteFunc) => {
+		updateFunc({ id: file_id, note });
+	},
+	500
+);
+
 export const Inspector = (props: {
 	locationId: number;
 	location?: LocationResource;
 	selectedFile?: FilePath;
 }) => {
 	const file_path = props.selectedFile;
+	const file_id = props.selectedFile?.file?.id;
 
 	let full_path = `${props.location?.path}/${file_path?.materialized_path}`;
 
@@ -44,10 +55,9 @@ export const Inspector = (props: {
 
 	const { mutate: fileSetNote } = useBridgeCommand('FileSetNote', {});
 
-	const fileSetNoteDebounced = useDebounce(fileSetNote, 500);
-
 	useEffect(() => {
-		if (props.selectedFile?.file) fileSetNoteDebounced({ id: props.selectedFile?.file.id, note });
+		if (file_id !== undefined && note !== props.selectedFile?.file?.note)
+			updateNoteDebounced(file_id, note, fileSetNote as UpdateNoteFunc);
 	}, [note]);
 
 	useEffect(() => {
